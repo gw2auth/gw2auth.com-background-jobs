@@ -119,4 +119,4 @@ jobs:
         run: (cdk --app ./cdk.out deploy --require-approval never Gw2AuthBackgroundJobs-Beta)
       - name: 'Deploy prod'
         if: github.ref == 'refs/heads/main'
-        run: (cdk --app ./cdk.out deploy --no-execute Gw2AuthBackgroundJobs-Prod)
+        run: (cdk --app ./cdk.out deploy --require-approval never --no-execute Gw2AuthBackgroundJobs-Prod)

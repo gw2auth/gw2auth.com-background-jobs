@@ -85,6 +85,8 @@ jobs:
       - name: 'Prepare lambda bundle'
         run: (zip -q src/cdk/gw2auth_background_jobs.zip gw2auth_background_jobs && rm gw2auth_background_jobs)
       - name: 'Synth cdk'
+        env:
+          GW2AUTH_BACKGROUNDS_JOBS: true
         run: (cd src/cdk && cdk synth)
       - name: 'Store cdk synth artifact'
         uses: actions/upload-artifact@v3

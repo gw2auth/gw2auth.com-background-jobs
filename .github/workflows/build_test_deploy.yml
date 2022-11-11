@@ -60,6 +60,13 @@ jobs:
     steps:
       - name: 'Checkout'
         uses: actions/checkout@v3
+      - name: 'SSH Key for CDK'
+        uses: webfactory/ssh-agent@v0.7.0
+        with:
+          ssh-private-key: |
+            ${{ secrets.CDK_SSH_KEY }}
+      - name: 'Checkout submodules'
+        run: git submodule update --init --recursive --remote
       - name: 'Download app artifact'
         uses: actions/download-artifact@v3
         with:

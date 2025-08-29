@@ -1,0 +1,32 @@
+name: 'Build, Test'
+description: 'Build, Test'
+
+inputs:
+  working-directory:
+    description: 'working-directory'
+    required: true
+  output:
+    description: 'output file path'
+    required: true
+
+
+runs:
+  using: 'composite'
+  steps:
+    - name: 'Setup go'
+      uses: actions/setup-go@v5
+      with:
+        go-version-file: '${{ inputs.working-directory }}/go.mod'
+        cache-dependency-path: '${{ inputs.working-directory }}/go.sum'
+    - name: 'Test'
+      working-directory: ${{ inputs.working-directory }}
+      run: 'go test ./...'
+      shell: bash
+    - name: 'Build'
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        GOOS: 'linux'
+        GOARCH: 'amd64' # keep this in sync with the arch configured in CDK!
+        CGO_ENABLED: '0'
+      run: 'go build -o ${{ inputs.output }} -tags "lambda,lambda.norpc"'
+      shell: bash

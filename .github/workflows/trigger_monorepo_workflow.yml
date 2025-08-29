@@ -1,0 +1,27 @@
+name: 'Trigger monorepo workflow'
+
+on:
+  push:
+    branches:
+      - '*'
+
+jobs:
+  build_and_test:
+    name: 'Build, Test'
+    runs-on: ubuntu-latest
+    steps:
+      - name: 'Checkout'
+        uses: actions/checkout@v4
+      - name: 'Build, Test'
+        uses: './.github/actions/build_and_test'
+        with:
+          working-directory: '.'
+          output: 'bootstrap'
+
+  trigger_monorepo_workflow:
+    name: 'Trigger monorepo workflow'
+    needs:
+      - build_and_test
+    uses: gw2auth/gw2auth.com-monorepo/.github/workflows/trigger_monorepo_workflow.yml@beta
+    secrets:
+      token: ${{ secrets.MONOREPO_DISPATCH_PAT }}

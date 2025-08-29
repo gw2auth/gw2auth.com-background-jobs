@@ -5,8 +5,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"time"
 
 	crdbpgx "github.com/cockroachdb/cockroach-go/v2/crdb/crdbpgxv5"
@@ -16,6 +18,7 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
+	"golang.org/x/time/rate"
 )
 
 const (
@@ -35,14 +38,18 @@ type TokenChecker struct {
 	pool       *pgxpool.Pool
 	httpClient *http.Client
 	tracer     trace.Tracer
+	limiter    *rate.Limiter
 }
 
 func NewTokenChecker(pool *pgxpool.Pool, httpClient *http.Client) *TokenChecker {
 	tracer := otel.Tracer("github.com/gw2auth/gw2auth.com-background-jobs::TokenChecker", trace.WithInstrumentationVersion("v0.0.1"))
+	limiter := rate.NewLimiter(rate.Every(time.Minute)*250, 300)
+
 	return &TokenChecker{
 		pool:       pool,
 		httpClient: httpClient,
 		tracer:     tracer,
+		limiter:    limiter,
 	}
 }
 
@@ -250,24 +257,19 @@ AND gw2_account_id = $3
 }
 
 func (tc *TokenChecker) getGw2AccountName(ctx context.Context, gw2ApiToken string) (string, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "https://api.guildwars2.com/v2/account", nil)
-	if err != nil {
-		return "", err
-	}
-
-	q := req.URL.Query()
+	q := make(url.Values)
 	q.Set("v", "2025-08-29T00:00:00.000Z")
 	q.Set("access_token", gw2ApiToken)
-	req.URL.RawQuery = q.Encode()
 
-	resp, err := tc.httpClient.Do(req)
+	resp, err := tc.getFromApi(ctx, "https://api.guildwars2.com/v2/account", q)
 	if err != nil {
 		return "", err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+		content, _ := io.ReadAll(resp.Body)
+		return "", fmt.Errorf("unexpected status code: %d (body=%q)", resp.StatusCode, string(content))
 	}
 
 	var body struct {
@@ -278,4 +280,47 @@ func (tc *TokenChecker) getGw2AccountName(ctx context.Context, gw2ApiToken strin
 	}
 
 	return body.Name, nil
+}
+
+func (tc *TokenChecker) getFromApi(ctx context.Context, url string, q url.Values) (*http.Response, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	baseQuery := req.URL.Query()
+	for k, v := range q {
+		for _, vv := range v {
+			baseQuery.Add(k, vv)
+		}
+	}
+
+	req.URL.RawQuery = baseQuery.Encode()
+
+	const maxAttempts = 5
+	for i := 0; i < maxAttempts; i++ {
+		if err := tc.limiter.Wait(ctx); err != nil {
+			return nil, err
+		}
+
+		resp, err := tc.httpClient.Do(req)
+		if err != nil {
+			return nil, err
+		}
+
+		switch resp.StatusCode {
+		case http.StatusOK:
+			return resp, nil
+
+		case http.StatusNotFound, http.StatusGatewayTimeout:
+			// retry
+			_ = resp.Body.Close()
+
+		default:
+			// abort
+			return resp, nil
+		}
+	}
+
+	return nil, errors.New("max attempts exceeded")
 }

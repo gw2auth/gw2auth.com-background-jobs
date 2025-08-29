@@ -159,7 +159,7 @@ func (tc *TokenChecker) checkSingleInternal(ctx context.Context, tk token) error
 	var isValid bool
 	{
 		var err error
-		newGw2AccountName, err = tc.getGw2AccountName(ctx, tk.Gw2AccountName)
+		newGw2AccountName, err = tc.getGw2AccountName(ctx, tk.Gw2ApiToken)
 		if err != nil {
 			slog.InfoContext(
 				ctx,

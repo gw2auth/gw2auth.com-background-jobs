@@ -56,8 +56,15 @@ func main() {
 	}
 	defer pool.Close()
 
+	tc := NewTokenChecker(
+		pool,
+		&http.Client{
+			Transport: otelhttp.NewTransport(http.DefaultTransport),
+		},
+	)
+
 	lambda.StartWithOptions(
-		otellambda.InstrumentHandler(lambdaHandler(pool), otellambda.WithTracerProvider(tp), otellambda.WithFlusher(tp)),
+		otellambda.InstrumentHandler(lambdaHandler(tc), otellambda.WithTracerProvider(tp), otellambda.WithFlusher(tp)),
 		lambda.WithContext(ctx),
 	)
 }
@@ -124,12 +131,8 @@ func pgxPool(ctx context.Context) (*pgxpool.Pool, error) {
 	return db.NewPgx(ctx, *resp.Parameter.Value)
 }
 
-func lambdaHandler(pool *pgxpool.Pool) func(ctx context.Context, request json.RawMessage) (json.RawMessage, error) {
-	httpClient := &http.Client{
-		Transport: otelhttp.NewTransport(http.DefaultTransport),
-	}
-
+func lambdaHandler(tc *TokenChecker) func(ctx context.Context, request json.RawMessage) (json.RawMessage, error) {
 	return func(ctx context.Context, request json.RawMessage) (json.RawMessage, error) {
-		return request, run(ctx, pool, httpClient)
+		return request, tc.Run(ctx)
 	}
 }

@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/agoda-com/opentelemetry-go/otelslog"
 	"github.com/agoda-com/opentelemetry-logs-go/exporters/stdout/stdoutlogs"
@@ -50,13 +51,21 @@ func main() {
 	}
 	defer pool.Close()
 
-	httpClient := &http.Client{
-		Transport: otelhttp.NewTransport(http.DefaultTransport),
-	}
+	tc := NewTokenChecker(
+		pool,
+		&http.Client{
+			Transport: otelhttp.NewTransport(http.DefaultTransport),
+		},
+	)
 
-	if err := run(ctx, pool, httpClient); err != nil {
-		slog.ErrorContext(ctx, "failed to run", slog.String("error", err.Error()))
-		return
+	{
+		ctx, cancel := context.WithTimeout(ctx, 15*time.Minute)
+		defer cancel()
+
+		if err := tc.Run(ctx); err != nil {
+			slog.ErrorContext(ctx, "failed to run", slog.String("error", err.Error()))
+			return
+		}
 	}
 }
 

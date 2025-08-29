@@ -9,7 +9,9 @@ require (
 	github.com/aws/aws-sdk-go-v2 v1.38.2
 	github.com/aws/aws-sdk-go-v2/config v1.31.5
 	github.com/aws/aws-sdk-go-v2/service/ssm v1.64.1
+	github.com/cockroachdb/cockroach-go/v2 v2.4.1
 	github.com/exaring/otelpgx v0.9.3
+	github.com/gofrs/uuid/v5 v5.0.0
 	github.com/jackc/pgx-gofrs-uuid v0.0.0-20230224015001-1d428863c2e2
 	github.com/jackc/pgx/v5 v5.7.5
 	go.opentelemetry.io/contrib/detectors/aws/lambda v0.62.0
@@ -44,7 +46,6 @@ require (
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/go-logr/logr v1.4.3 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
-	github.com/gofrs/uuid/v5 v5.0.0 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.27.1 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect

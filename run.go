@@ -216,7 +216,7 @@ AND gw2_account_id = $4
 
 			err = errors.Join(err1, err2)
 		} else {
-			_, err = tc.pool.Exec(
+			_, err1 := tc.pool.Exec(
 				ctx,
 				`
 UPDATE gw2_account_api_tokens
@@ -228,6 +228,21 @@ AND gw2_account_id = $3
 				tk.AccountId,
 				tk.Gw2AccountId,
 			)
+
+			_, err2 := tc.pool.Exec(
+				ctx,
+				`
+UPDATE gw2_accounts
+SET last_name_check_time = $1
+WHERE account_id = $2
+AND gw2_account_id = $3
+`,
+				now,
+				tk.AccountId,
+				tk.Gw2AccountId,
+			)
+
+			err = errors.Join(err1, err2)
 		}
 
 		return err

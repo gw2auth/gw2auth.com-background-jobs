@@ -61,6 +61,7 @@ func NewTokenChecker(pool *pgxpool.Pool, httpClient *http.Client) *TokenChecker 
 
 func (tc *TokenChecker) Run(ctx context.Context) error {
 	const timePerToken = time.Second * 10
+	const maxBatchSize = 20
 
 	deadline, ok := ctx.Deadline()
 	if !ok {
@@ -69,7 +70,7 @@ func (tc *TokenChecker) Run(ctx context.Context) error {
 
 	for {
 		remainingTime := time.Until(deadline)
-		batchSize := min(int(remainingTime/timePerToken), 100)
+		batchSize := min(int(remainingTime/timePerToken), maxBatchSize)
 		tokensToCheck, err := tc.loadBatch(ctx, batchSize)
 		if err != nil {
 			return fmt.Errorf("failed to load token batch: %w", err)

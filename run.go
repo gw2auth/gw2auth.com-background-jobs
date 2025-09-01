@@ -18,6 +18,7 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
+	"golang.org/x/sync/errgroup"
 	"golang.org/x/time/rate"
 )
 
@@ -32,6 +33,11 @@ type token struct {
 	Gw2AccountId   uuid.UUID
 	Gw2AccountName string
 	Gw2ApiToken    string
+}
+
+type apiRequestError struct {
+	penalize bool
+	error
 }
 
 type TokenChecker struct {
@@ -132,10 +138,15 @@ LIMIT $4
 func (tc *TokenChecker) checkBatch(ctx context.Context, tokensToCheck []token) error {
 	slog.InfoContext(ctx, "checking batch", slog.Int("batch.size", len(tokensToCheck)))
 
+	g, ctx := errgroup.WithContext(ctx)
 	for _, t := range tokensToCheck {
-		if err := tc.checkSingle(ctx, t); err != nil {
-			return fmt.Errorf("token check failed: %w", err)
-		}
+		g.Go(func() error {
+			return tc.checkSingle(ctx, t)
+		})
+	}
+
+	if err := g.Wait(); err != nil {
+		return fmt.Errorf("token check failed: %w", err)
 	}
 
 	return nil
@@ -187,7 +198,10 @@ func (tc *TokenChecker) checkSingleInternal(ctx context.Context, tk token) error
 			)
 		}
 
-		isValid = err == nil
+		var rErr apiRequestError
+		if err == nil || (errors.As(err, &rErr) && !rErr.penalize) {
+			isValid = true
+		}
 	}
 
 	now := time.Now()
@@ -263,20 +277,22 @@ func (tc *TokenChecker) getGw2AccountName(ctx context.Context, gw2ApiToken strin
 
 	resp, err := tc.getFromApi(ctx, "https://api.guildwars2.com/v2/account", q)
 	if err != nil {
-		return "", err
+		return "", apiRequestError{penalize: false, error: err}
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		content, _ := io.ReadAll(resp.Body)
-		return "", fmt.Errorf("unexpected status code: %d (body=%q)", resp.StatusCode, string(content))
+		err := fmt.Errorf("unexpected status code: %d (body=%q)", resp.StatusCode, string(content))
+
+		return "", apiRequestError{penalize: resp.StatusCode >= 400 && resp.StatusCode < 500, error: err}
 	}
 
 	var body struct {
 		Name string `json:"name"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
-		return "", err
+		return "", apiRequestError{penalize: false, error: err}
 	}
 
 	return body.Name, nil

@@ -60,18 +60,8 @@ func NewTokenChecker(pool *pgxpool.Pool, httpClient *http.Client) *TokenChecker 
 }
 
 func (tc *TokenChecker) Run(ctx context.Context) error {
-	const timePerToken = time.Second * 10
-	const maxBatchSize = 20
-
-	deadline, ok := ctx.Deadline()
-	if !ok {
-		deadline = time.Date(2100, time.January, 1, 0, 0, 0, 0, time.UTC)
-	}
-
 	for {
-		remainingTime := time.Until(deadline)
-		batchSize := min(int(remainingTime/timePerToken), maxBatchSize)
-		tokensToCheck, err := tc.loadBatch(ctx, batchSize)
+		tokensToCheck, err := tc.loadBatch(ctx, 20)
 		if err != nil {
 			return fmt.Errorf("failed to load token batch: %w", err)
 		}
@@ -209,7 +199,7 @@ func (tc *TokenChecker) checkSingleInternal(ctx context.Context, tk token) error
 	return crdbpgx.ExecuteTx(ctx, tc.pool, pgx.TxOptions{}, func(tx pgx.Tx) error {
 		var err error
 		if isValid {
-			_, err1 := tc.pool.Exec(
+			_, err1 := tx.Exec(
 				ctx,
 				`
 UPDATE gw2_account_api_tokens
@@ -222,7 +212,7 @@ AND gw2_account_id = $3
 				tk.Gw2AccountId,
 			)
 
-			_, err2 := tc.pool.Exec(
+			_, err2 := tx.Exec(
 				ctx,
 				`
 UPDATE gw2_accounts
@@ -238,7 +228,7 @@ AND gw2_account_id = $4
 
 			err = errors.Join(err1, err2)
 		} else {
-			_, err1 := tc.pool.Exec(
+			_, err1 := tx.Exec(
 				ctx,
 				`
 UPDATE gw2_account_api_tokens
@@ -251,7 +241,7 @@ AND gw2_account_id = $3
 				tk.Gw2AccountId,
 			)
 
-			_, err2 := tc.pool.Exec(
+			_, err2 := tx.Exec(
 				ctx,
 				`
 UPDATE gw2_accounts

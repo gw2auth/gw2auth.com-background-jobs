@@ -175,6 +175,7 @@ func (tc *TokenChecker) checkSingleInternal(ctx context.Context, tk token) error
 				"could not get gw2 account name",
 				slog.String("account.id", tk.AccountId.String()),
 				slog.String("gw2account.id", tk.Gw2AccountId.String()),
+				slog.String("gw2account.name.old", tk.Gw2AccountName),
 				slog.String("error", err.Error()),
 			)
 		} else {
@@ -216,7 +217,10 @@ AND gw2_account_id = $3
 				ctx,
 				`
 UPDATE gw2_accounts
-SET gw2_account_name = $1, last_name_check_time = $2
+SET
+	gw2_account_name = $1,
+	last_name_check_time = $2,
+	display_name = IF(display_name = gw2_account_name, $1, display_name)
 WHERE account_id = $3
 AND gw2_account_id = $4
 `,

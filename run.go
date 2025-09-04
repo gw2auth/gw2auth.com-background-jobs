@@ -190,8 +190,15 @@ func (tc *TokenChecker) checkSingleInternal(ctx context.Context, tk token) error
 			)
 		}
 
-		var rErr apiRequestError
-		if err == nil || (errors.As(err, &rErr) && !rErr.penalize) {
+		if err != nil {
+			var rErr apiRequestError
+			if errors.As(err, &rErr) && !rErr.penalize {
+				isValid = true
+				newGw2AccountName = tk.Gw2AccountName
+			} else {
+				isValid = false
+			}
+		} else {
 			isValid = true
 		}
 	}

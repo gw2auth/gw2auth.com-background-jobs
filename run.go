@@ -36,8 +36,12 @@ type token struct {
 }
 
 type apiRequestError struct {
-	penalize bool
+	statusCode int
 	error
+}
+
+func (err apiRequestError) penalize() bool {
+	return err.statusCode >= 400 && err.statusCode < 500
 }
 
 type TokenChecker struct {
@@ -192,11 +196,15 @@ func (tc *TokenChecker) checkSingleInternal(ctx context.Context, tk token) error
 
 		if err != nil {
 			var rErr apiRequestError
-			if errors.As(err, &rErr) && !rErr.penalize {
+			if !errors.As(err, &rErr) || rErr.statusCode == http.StatusTooManyRequests {
+				return err
+			}
+
+			if rErr.penalize() {
+				isValid = false
+			} else {
 				isValid = true
 				newGw2AccountName = tk.Gw2AccountName
-			} else {
-				isValid = false
 			}
 		} else {
 			isValid = true
@@ -279,7 +287,7 @@ func (tc *TokenChecker) getGw2AccountName(ctx context.Context, gw2ApiToken strin
 
 	resp, err := tc.getFromApi(ctx, "https://api.guildwars2.com/v2/account", q)
 	if err != nil {
-		return "", apiRequestError{penalize: false, error: err}
+		return "", apiRequestError{statusCode: 0, error: err}
 	}
 	defer resp.Body.Close()
 
@@ -287,14 +295,14 @@ func (tc *TokenChecker) getGw2AccountName(ctx context.Context, gw2ApiToken strin
 		content, _ := io.ReadAll(resp.Body)
 		err := fmt.Errorf("unexpected status code: %d (body=%q)", resp.StatusCode, string(content))
 
-		return "", apiRequestError{penalize: resp.StatusCode >= 400 && resp.StatusCode < 500, error: err}
+		return "", apiRequestError{statusCode: resp.StatusCode, error: err}
 	}
 
 	var body struct {
 		Name string `json:"name"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
-		return "", apiRequestError{penalize: false, error: err}
+		return "", apiRequestError{statusCode: resp.StatusCode, error: err}
 	}
 
 	return body.Name, nil

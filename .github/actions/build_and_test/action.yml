@@ -14,7 +14,7 @@ runs:
   using: 'composite'
   steps:
     - name: 'Setup go'
-      uses: actions/setup-go@v5
+      uses: actions/setup-go@v6
       with:
         go-version-file: '${{ inputs.working-directory }}/go.mod'
         cache-dependency-path: '${{ inputs.working-directory }}/go.sum'

@@ -22,7 +22,7 @@ import (
 	"go.opentelemetry.io/otel/exporters/stdout/stdouttrace"
 	sdkresource "go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
-	semconv "go.opentelemetry.io/otel/semconv/v1.21.0"
+	semconv "go.opentelemetry.io/otel/semconv/v1.38.0"
 )
 
 func main() {
